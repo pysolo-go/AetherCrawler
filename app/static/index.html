@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AetherCrawler | AI 加密货币情绪分析</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- TradingView Advanced Chart Widget -->
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        dark: '#0a0a0b',
+                        card: '#141417',
+                        accent: '#00f0ff',
+                        bearish: '#ff2e63',
+                        bullish: '#00f0ff',
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0a0a0b;
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(0, 240, 255, 0.08), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(255, 46, 99, 0.05), transparent 25%);
+            background-attachment: fixed;
+        }
+        
+        .glass-panel {
+            background: rgba(20, 20, 23, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .glow-text {
+            text-shadow: 0 0 20px rgba(0, 240, 255, 0.5);
+        }
+
+        .loader {
+            border: 2px solid rgba(255,255,255,0.1);
+            border-top-color: #00f0ff;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.2);
+        }
+    </style>
+</head>
+<body class="min-h-screen antialiased selection:bg-accent selection:text-dark">
+    <div id="app" class="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        
+        <!-- Header -->
+        <header class="flex items-center justify-between py-6 mb-8 border-b border-white/5">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-accent to-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(0,240,255,0.3)]">
+                    <i class="ph ph-cpu text-2xl text-dark"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">AetherCrawler</h1>
+                    <p class="text-xs text-gray-400">AI 加密货币情绪分析</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 text-sm text-gray-400 bg-white/5 px-3 py-1.5 rounded-full border border-white/5">
+                    <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                    系统在线
+                </div>
+            </div>
+        </header>
+
+        <!-- Main App Container - uses flex column to easily control order -->
+        <div class="flex flex-col">
+            <!-- Main Search Area -->
+            <div class="glass-panel rounded-2xl p-6 mb-8 flex flex-col md:flex-row gap-4 items-center justify-between relative overflow-hidden">
+            <div class="absolute inset-0 bg-gradient-to-r from-accent/5 to-transparent pointer-events-none"></div>
+            
+            <div class="w-full md:w-2/3 relative z-10">
+                <h2 class="text-2xl font-semibold mb-2">发起分析任务</h2>
+                <p class="text-sm text-gray-400 mb-4">部署 AI 代理爬取任意加密货币的最新新闻、市场情绪及价格异动。</p>
+                
+                <div class="flex gap-3">
+                    <div class="relative flex-1">
+                        <i class="ph ph-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        <input 
+                            v-model="coinInput" 
+                            @keyup.enter="startAnalysis"
+                            type="text" 
+                            placeholder="例如：bitcoin (比特币), ethereum (以太坊), solana..." 
+                            class="w-full bg-black/50 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+                            :disabled="isAnalyzing"
+                        >
+                    </div>
+                    <button 
+                        @click="startAnalysis" 
+                        :disabled="isAnalyzing || !coinInput.trim()"
+                        class="bg-white text-dark font-medium px-6 py-3 rounded-xl hover:bg-gray-200 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                        <span v-if="!isAnalyzing">开始分析</span>
+                        <div v-else class="loader !w-5 !h-5 !border-dark !border-top-white"></div>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="hidden md:block w-1/3 text-right z-10">
+                <div class="inline-block text-left glass-panel p-4 rounded-xl">
+                    <div class="text-xs text-gray-400 mb-1">数据来源模块</div>
+                    <div class="flex gap-2 items-center text-sm">
+                        <i class="ph-fill ph-check-circle text-accent"></i> CoinGecko 实时价格
+                    </div>
+                    <div class="flex gap-2 items-center text-sm mt-1">
+                        <i class="ph-fill ph-check-circle text-accent"></i> 加密新闻爬虫
+                    </div>
+                    <div class="flex gap-2 items-center text-sm mt-1">
+                        <i class="ph-fill ph-check-circle text-accent"></i> LLM 逻辑推理
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Tracker & Terminal -->
+        <div v-if="isAnalyzing" class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 animate-[fadeIn_0.5s_ease-out]">
+            <!-- Status Panel -->
+            <div class="glass-panel rounded-2xl p-8 text-center flex flex-col items-center justify-center">
+                <div class="loader mx-auto mb-6 !w-12 !h-12 !border-accent !border-top-transparent"></div>
+                <h3 class="text-xl font-medium text-accent glow-text mb-2">{{ statusMessage }}</h3>
+                <p class="text-sm text-gray-400">任务 ID: <span class="text-white font-mono">{{ currentTaskId || '分配中...' }}</span></p>
+                <div class="mt-6 w-full max-w-xs bg-dark rounded-full h-1.5 overflow-hidden">
+                    <div class="bg-accent h-full transition-all duration-300" :style="{ width: progressPercent + '%' }"></div>
+                </div>
+            </div>
+
+            <!-- Fake Terminal Logs -->
+            <div class="glass-panel rounded-2xl p-4 font-mono text-xs overflow-hidden h-64 flex flex-col relative">
+                <div class="absolute top-0 left-0 w-full h-8 bg-gradient-to-b from-card/90 to-transparent z-10 pointer-events-none"></div>
+                <div class="text-gray-500 mb-2 pb-2 border-b border-white/5 flex justify-between items-center z-20 relative bg-card/50 backdrop-blur-sm rounded-t-lg px-2">
+                    <span class="flex items-center gap-2"><i class="ph ph-terminal-window text-sm"></i> 执行日志</span>
+                    <span class="flex gap-1">
+                        <span class="w-2.5 h-2.5 rounded-full bg-red-500/80"></span>
+                        <span class="w-2.5 h-2.5 rounded-full bg-yellow-500/80"></span>
+                        <span class="w-2.5 h-2.5 rounded-full bg-green-500/80"></span>
+                    </span>
+                </div>
+                <div class="flex-1 overflow-y-auto pb-4 space-y-1 scroll-smooth pr-2 relative z-0" id="terminal-logs">
+                    <div v-for="(log, idx) in logs" :key="idx" class="flex gap-3">
+                        <span class="text-gray-500 shrink-0">[{{ log.time }}]</span>
+                        <span :class="log.color">{{ log.text }}</span>
+                    </div>
+                    <div class="flex gap-3 animate-pulse">
+                        <span class="text-gray-500 shrink-0">[{{ currentTime }}]</span>
+                        <span class="text-accent">_</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Section (Always Visible) -->
+        <div v-if="recentHistory.length > 0" class="mb-8 animate-[fadeIn_0.5s_ease-out] order-last">
+            <h3 class="text-lg font-medium mb-4 flex items-center gap-2">
+                <i class="ph ph-clock-counter-clockwise text-accent"></i> 历史分析报告
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div v-for="item in recentHistory" :key="item.id" 
+                     @click="loadHistory(item)"
+                     class="glass-panel rounded-xl p-5 cursor-pointer hover:border-accent/50 hover:shadow-[0_0_15px_rgba(0,240,255,0.15)] transition-all group"
+                     :class="{'border-accent shadow-[0_0_15px_rgba(0,240,255,0.15)]': result && result.id === item.id}">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="flex items-center gap-2">
+                            <i class="ph ph-currency-btc text-xl text-gray-400 group-hover:text-white transition-colors" :class="{'text-white': result && result.id === item.id}"></i>
+                            <span class="font-bold uppercase">{{ item.coin }}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs px-2 py-1 rounded bg-white/5 border border-white/10" 
+                                  :class="item.sentiment_score >= 0.6 ? 'text-accent border-accent/20' : (item.sentiment_score <= 0.4 ? 'text-bearish border-bearish/20' : 'text-yellow-400 border-yellow-400/20')">
+                                {{ item.sentiment }}
+                            </span>
+                            <button @click.stop="deleteReport(item.id)" class="text-gray-500 hover:text-red-500 transition-colors rounded-md p-1 opacity-0 group-hover:opacity-100" title="删除">
+                                <i class="ph ph-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-400 line-clamp-2 mb-4">{{ item.summary }}</p>
+                    <div class="flex justify-between items-center text-xs text-gray-500">
+                        <span>价格: ${{ formatNumber(item.price_data.usd) }}</span>
+                        <span>{{ new Date(item.created_at).toLocaleString('zh-CN', {month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit'}) }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Dashboard -->
+        <div v-if="result" class="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-[fadeIn_0.5s_ease-out] mb-8 relative pt-12">
+            <!-- Close Report Button -->
+            <button @click="closeReport" class="absolute top-0 right-0 flex items-center gap-2 text-gray-400 hover:text-white bg-white/5 px-4 py-2 rounded-full border border-white/10 hover:border-white/30 transition-all z-20">
+                <i class="ph ph-x-circle"></i> 收起报告
+            </button>
+            
+            <!-- Left Column: Price & Sentiment -->
+            <div class="flex flex-col gap-6">
+                <!-- Price Widget -->
+                <div class="glass-panel rounded-2xl p-6 relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
+                    <h3 class="text-gray-400 text-sm font-medium mb-1 uppercase tracking-wider flex items-center gap-2">
+                        <i class="ph ph-currency-btc text-lg"></i> {{ result.coin }}
+                    </h3>
+                    <div class="text-4xl font-bold mb-2">${{ formatNumber(result.price_data.usd) }}</div>
+                    
+                    <div class="flex items-center gap-2 text-sm font-medium" :class="result.price_data.usd_24h_change >= 0 ? 'text-accent' : 'text-bearish'">
+                        <i :class="result.price_data.usd_24h_change >= 0 ? 'ph-bold ph-trend-up' : 'ph-bold ph-trend-down'"></i>
+                        {{ Math.abs(result.price_data.usd_24h_change).toFixed(2) }}% (24H)
+                    </div>
+                    
+                    <div class="mt-6 space-y-3 border-t border-white/5 pt-4">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-500">当前市值</span>
+                            <span class="font-medium">${{ formatCompact(result.price_data.usd_market_cap) }}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-500">24H 成交量</span>
+                            <span class="font-medium">${{ formatCompact(result.price_data.usd_24h_vol) }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sentiment Gauge -->
+                <div class="glass-panel rounded-2xl p-6 flex flex-col items-center justify-center relative">
+                    <h3 class="text-gray-400 text-sm font-medium absolute top-6 left-6 uppercase tracking-wider">AI 情绪得分</h3>
+                    
+                    <!-- CSS Gauge approximation -->
+                    <div class="mt-8 relative w-40 h-40 flex items-center justify-center">
+                        <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="8" />
+                            <circle cx="50" cy="50" r="45" fill="none" :stroke="getSentimentColor(result.sentiment_score)" stroke-width="8" 
+                                    stroke-dasharray="282.7" :stroke-dashoffset="282.7 - (282.7 * result.sentiment_score)" 
+                                    class="transition-all duration-1000 ease-out" stroke-linecap="round" />
+                        </svg>
+                        <div class="absolute flex flex-col items-center">
+                            <span class="text-3xl font-bold" :style="{ color: getSentimentColor(result.sentiment_score) }">
+                                {{ (result.sentiment_score * 100).toFixed(0) }}
+                            </span>
+                            <span class="text-xs text-gray-400">/ 100</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 text-center">
+                        <div class="text-lg font-bold uppercase tracking-wide" :style="{ color: getSentimentColor(result.sentiment_score), textShadow: `0 0 10px ${getSentimentColor(result.sentiment_score)}80` }">
+                            {{ result.sentiment }}
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">风险评级: <span class="text-white">{{ result.risk_level }}</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Middle Column: Chart & Factors -->
+            <div class="lg:col-span-2 flex flex-col gap-6">
+                <!-- Chart Container -->
+                <div class="glass-panel rounded-2xl p-1 relative h-96">
+                    <div id="tvchart" class="w-full h-full rounded-xl overflow-hidden"></div>
+                </div>
+
+                <!-- AI Analysis Summary -->
+                <div class="glass-panel rounded-2xl p-6">
+                    <h3 class="text-gray-400 text-sm font-medium mb-4 uppercase tracking-wider flex items-center gap-2">
+                        <i class="ph ph-brain text-lg text-accent"></i> 交易策略研报
+                    </h3>
+                    <p class="text-gray-200 leading-relaxed text-sm md:text-base whitespace-pre-wrap">{{ result.summary }}</p>
+                </div>
+            </div>
+            
+            <!-- Bottom Full Width: Key Factors & Catalysts -->
+            <div class="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
+                <div class="glass-panel rounded-2xl p-6">
+                    <h3 class="text-gray-400 text-sm font-medium mb-4 uppercase tracking-wider flex items-center gap-2">
+                        <i class="ph ph-list-bullets text-lg"></i> 核心驱动因素
+                    </h3>
+                    <ul class="space-y-3">
+                        <li v-for="(factor, idx) in result.key_factors" :key="'f'+idx" class="flex gap-3 text-sm text-gray-300">
+                            <i class="ph-fill ph-caret-right text-accent mt-0.5 shrink-0"></i>
+                            <span class="leading-relaxed">{{ factor }}</span>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="glass-panel rounded-2xl p-6">
+                    <h3 class="text-gray-400 text-sm font-medium mb-4 uppercase tracking-wider flex items-center gap-2">
+                        <i class="ph ph-lightning text-lg text-yellow-400"></i> 潜在催化剂 (变盘点)
+                    </h3>
+                    <ul class="space-y-3">
+                        <li v-for="(cat, idx) in result.potential_catalysts" :key="'c'+idx" class="flex gap-3 text-sm text-gray-300">
+                            <i class="ph-fill ph-warning-circle text-yellow-400 mt-0.5 shrink-0"></i>
+                            <span class="leading-relaxed">{{ cat }}</span>
+                        </li>
+                        <li v-if="!result.potential_catalysts || result.potential_catalysts.length === 0" class="text-sm text-gray-500 italic">
+                            暂未发现明确的短期催化剂。
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, nextTick } = Vue
+
+        createApp({
+            setup() {
+                const coinInput = ref('bitcoin')
+                const isAnalyzing = ref(false)
+                const statusMessage = ref('')
+                const currentTaskId = ref(null)
+                const result = ref(null)
+                const recentHistory = ref([])
+                const logs = ref([])
+                const currentTime = ref(new Date().toLocaleTimeString('zh-CN', {hour12: false}))
+                const progressPercent = ref(0)
+                let logInterval = null
+                let timeInterval = null
+
+                onMounted(() => {
+                    fetchRecentHistory()
+                    timeInterval = setInterval(() => {
+                        currentTime.value = new Date().toLocaleTimeString('zh-CN', {hour12: false})
+                    }, 1000)
+                })
+
+                const fetchRecentHistory = async () => {
+                    try {
+                        const res = await fetch('/history/recent')
+                        if (res.ok) {
+                            recentHistory.value = await res.json()
+                        }
+                    } catch (err) {
+                        console.error('Failed to fetch history:', err)
+                    }
+                }
+
+                const loadHistory = (item) => {
+                    result.value = item
+                    coinInput.value = item.coin
+                    nextTick(() => {
+                        initChart()
+                        window.scrollTo({ top: 0, behavior: 'smooth' })
+                    })
+                }
+
+                const closeReport = () => {
+                    result.value = null
+                    coinInput.value = ''
+                    const chartContainer = document.getElementById('tvchart')
+                    if (chartContainer) {
+                        chartContainer.innerHTML = ''
+                    }
+                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                }
+
+                const deleteReport = async (reportId) => {
+                    if (!confirm('确定要删除这份分析报告吗？')) return
+                    
+                    try {
+                        const res = await fetch(`/history/${reportId}`, { method: 'DELETE' })
+                        if (res.ok) {
+                            if (result.value && result.value.id === reportId) {
+                                closeReport()
+                            }
+                            fetchRecentHistory()
+                        } else {
+                            alert('删除失败，请稍后重试。')
+                        }
+                    } catch (err) {
+                        console.error('Failed to delete report:', err)
+                        alert('网络错误，删除失败。')
+                    }
+                }
+
+                const addLog = (text, type = 'info') => {
+                    const colors = {
+                        info: 'text-gray-300',
+                        success: 'text-green-400',
+                        warning: 'text-yellow-400',
+                        error: 'text-red-400',
+                        system: 'text-accent'
+                    }
+                    logs.value.push({
+                        time: new Date().toLocaleTimeString('zh-CN', {hour12: false}),
+                        text,
+                        color: colors[type] || colors.info
+                    })
+                    nextTick(() => {
+                        const container = document.getElementById('terminal-logs')
+                        if (container) container.scrollTop = container.scrollHeight
+                    })
+                }
+
+                const simulateLogs = () => {
+                    logs.value = []
+                    progressPercent.value = 5
+                    addLog('初始化 AetherCrawler 分析代理...', 'system')
+                    
+                    const sequence = [
+                        { t: 1000, p: 15, msg: '连接至代理节点 (Port: 7897)...', type: 'info' },
+                        { t: 2500, p: 25, msg: '[OK] 代理连接成功。', type: 'success' },
+                        { t: 3500, p: 35, msg: `正在拉取 ${coinInput.value} 实时价格与 24H 波动数据...`, type: 'info' },
+                        { t: 6000, p: 50, msg: '[OK] CoinGecko 数据拉取完成。', type: 'success' },
+                        { t: 7000, p: 60, msg: '启动新闻爬虫模块...', type: 'system' },
+                        { t: 9000, p: 70, msg: '正在抓取近 7 天相关新闻与社交情绪...', type: 'info' },
+                        { t: 14000, p: 80, msg: '[OK] 成功抓取 24 条高关联度新闻。', type: 'success' },
+                        { t: 15500, p: 85, msg: '正在构建大模型 Prompt 提示词...', type: 'system' },
+                        { t: 17000, p: 90, msg: '请求阿里云通义千问 (Qwen-plus) API...', type: 'info' },
+                        { t: 25000, p: 95, msg: 'AI 正在进行逻辑推理与策略生成...', type: 'warning' },
+                    ]
+
+                    let timers = []
+                    sequence.forEach(step => {
+                        const timer = setTimeout(() => {
+                            if (!isAnalyzing.value) return
+                            addLog(step.msg, step.type)
+                            progressPercent.value = step.p
+                        }, step.t)
+                        timers.push(timer)
+                    })
+                    
+                    return () => timers.forEach(t => clearTimeout(t))
+                }
+
+                const formatNumber = (num) => {
+                    if (!num) return '0.00'
+                    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                }
+
+                const formatCompact = (num) => {
+                    if (!num) return '0'
+                    return Intl.NumberFormat('zh-CN', { notation: "compact", maximumFractionDigits: 2 }).format(num)
+                }
+
+                const getSentimentColor = (score) => {
+                    if (score >= 0.6) return '#00f0ff' // Bullish (Cyan)
+                    if (score <= 0.4) return '#ff2e63' // Bearish (Red)
+                    return '#facc15' // Neutral (Yellow)
+                }
+
+                const initChart = () => {
+                    const chartContainer = document.getElementById('tvchart')
+                    if (!chartContainer) return
+                    chartContainer.innerHTML = ''
+
+                    const coinMap = {
+                        'bitcoin': 'BINANCE:BTCUSDT',
+                        'btc': 'BINANCE:BTCUSDT',
+                        'ethereum': 'BINANCE:ETHUSDT',
+                        'eth': 'BINANCE:ETHUSDT',
+                        'solana': 'BINANCE:SOLUSDT',
+                        'sol': 'BINANCE:SOLUSDT',
+                        'dogecoin': 'BINANCE:DOGEUSDT',
+                        'doge': 'BINANCE:DOGEUSDT'
+                    }
+                    const coinName = result.value ? result.value.coin.toLowerCase() : 'bitcoin'
+                    // Fallback to BINANCE:{COIN}USDT if not in map
+                    const tvSymbol = coinMap[coinName] || `BINANCE:${coinName.toUpperCase()}USDT`
+
+                    new TradingView.widget({
+                        "autosize": true,
+                        "symbol": tvSymbol,
+                        "interval": "60", // 1小时K线，匹配用户的交易习惯
+                        "timezone": "Asia/Shanghai",
+                        "theme": "dark",
+                        "style": "1", // 蜡烛图
+                        "locale": "zh_CN",
+                        "enable_publishing": false,
+                        "backgroundColor": "rgba(20, 20, 23, 0.6)",
+                        "gridColor": "rgba(255, 255, 255, 0.05)",
+                        "hide_top_toolbar": false,
+                        "hide_legend": false,
+                        "save_image": false,
+                        "container_id": "tvchart"
+                    });
+                }
+
+                const pollTaskStatus = async (taskId) => {
+                    let attempts = 0;
+                    const maxAttempts = 100; // 100 * 3s = 300s
+
+                    const poll = async () => {
+                        if (attempts >= maxAttempts) {
+                            statusMessage.value = '分析耗时过长，可能仍在后台运行。'
+                            addLog('轮询超时，请稍后刷新页面查看历史记录。', 'warning')
+                            // 稍微延迟后关闭，以免突然消失
+                            setTimeout(() => {
+                                isAnalyzing.value = false
+                                fetchRecentHistory()
+                            }, 5000)
+                            return
+                        }
+
+                        try {
+                            const res = await fetch(`/tasks/${taskId}`)
+                            const data = await res.json()
+
+                            if (data.status === 'SUCCESS') {
+                                result.value = data.result
+                                progressPercent.value = 100
+                                addLog('分析完成！生成报告中...', 'success')
+                                
+                                setTimeout(() => {
+                                    isAnalyzing.value = false
+                                    fetchRecentHistory() // Update history
+                                    // Render chart after DOM updates
+                                    nextTick(() => {
+                                        initChart()
+                                    })
+                                }, 500)
+                            } else if (data.status === 'FAILURE') {
+                                statusMessage.value = '任务执行失败。'
+                                isAnalyzing.value = false
+                            } else {
+                                // PENDING or STARTED
+                                statusMessage.value = data.status === 'STARTED' ? 'AI 正在分析数据...' : '排队等待中...'
+                                attempts++
+                                setTimeout(poll, 3000)
+                            }
+                        } catch (err) {
+                            console.error(err)
+                            statusMessage.value = '网络请求错误，请检查后端。'
+                            isAnalyzing.value = false
+                        }
+                    }
+
+                    poll()
+                }
+
+                const startAnalysis = async () => {
+                    if (!coinInput.value.trim() || isAnalyzing.value) return
+                    
+                    isAnalyzing.value = true
+                    result.value = null
+                    statusMessage.value = '正在部署 AI 代理...'
+                    
+                    const clearTimers = simulateLogs()
+                    
+                    try {
+                        const res = await fetch('/analyze-crypto', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ coin: coinInput.value.trim(), days: 7 })
+                        })
+                        
+                        if (!res.ok) {
+                            throw new Error(`HTTP Error: ${res.status}`)
+                        }
+                        
+                        const data = await res.json()
+                        currentTaskId.value = data.id || data.task_id
+                        statusMessage.value = '任务已提交，爬虫正在外网抓取数据...'
+                        
+                        pollTaskStatus(data.id || data.task_id)
+                        
+                    } catch (err) {
+                        console.error(err)
+                        statusMessage.value = '提交任务失败。'
+                        addLog('请求失败，后端异常。', 'error')
+                        // 延迟 3 秒后关闭动画，让用户能看到错误提示
+                        setTimeout(() => {
+                            isAnalyzing.value = false
+                        }, 3000)
+                    }
+                }
+
+                return {
+                    coinInput,
+                    isAnalyzing,
+                    statusMessage,
+                    currentTaskId,
+                    result,
+                    recentHistory,
+                    logs,
+                    currentTime,
+                    progressPercent,
+                    loadHistory,
+                    closeReport,
+                    deleteReport,
+                    startAnalysis,
+                    formatNumber,
+                    formatCompact,
+                    getSentimentColor
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>

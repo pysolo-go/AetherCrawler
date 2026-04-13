@@ -1,0 +1,116 @@
+services:
+  # ------------------------------------
+  # 1. PostgreSQL 数据库 (持久化任务与分析结果)
+  # ------------------------------------
+  postgres:
+    image: docker.1panel.live/library/postgres:15-alpine
+    container_name: aethercrawler-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: aethercrawler
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d aethercrawler"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ------------------------------------
+  # 2. Redis (Celery Broker 和 Backend)
+  # ------------------------------------
+  redis:
+    image: docker.1panel.live/library/redis:7-alpine
+    container_name: aethercrawler-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ------------------------------------
+  # 3. FastAPI Web 主服务
+  # ------------------------------------
+  web:
+    build: .
+    container_name: aethercrawler-web
+    restart: always
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      # 强制覆盖环境变量以连接 Docker 网络内的服务
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/aethercrawler
+      - REDIS_URL=redis://redis:6379/0
+      - HTTP_PROXY=http://host.docker.internal:7897
+      - HTTPS_PROXY=http://host.docker.internal:7897
+      - ALL_PROXY=http://host.docker.internal:7897
+      - NO_PROXY=localhost,127.0.0.1,postgres,redis,0.0.0.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ------------------------------------
+  # 4. Celery Worker (执行耗时爬虫和AI分析任务)
+  # ------------------------------------
+  worker:
+    build: .
+    container_name: aethercrawler-worker
+    restart: always
+    # 使用 -c 2 限制单个 worker 进程并发数为2，避免 Playwright 实例太多撑爆内存
+    command: celery -A app.celery_app worker -l info -c 2
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/aethercrawler
+      - REDIS_URL=redis://redis:6379/0
+      - HTTP_PROXY=http://host.docker.internal:7897
+      - HTTPS_PROXY=http://host.docker.internal:7897
+      - ALL_PROXY=http://host.docker.internal:7897
+      - NO_PROXY=localhost,127.0.0.1,postgres,redis,0.0.0.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_started
+    # 在 swarm 模式或 compose 中可水平扩展，例如：docker-compose up --scale worker=3
+    
+  # ------------------------------------
+  # 5. Flower (可视化 Celery 任务监控面板)
+  # ------------------------------------
+  flower:
+    image: docker.1panel.live/mher/flower:2.0
+    container_name: aethercrawler-flower
+    restart: always
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+      worker:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  redis_data:
