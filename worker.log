@@ -3,10 +3,10 @@
  
  -------------- celery@solodeMacBook-Air.local v5.6.3 (recovery)
 --- ***** ----- 
--- ******* ---- macOS-15.7.3-arm64-arm-64bit 2026-06-20 16:34:11
+-- ******* ---- macOS-15.7.3-arm64-arm-64bit 2026-06-20 16:39:01
 - *** --- * --- 
 - ** ---------- [config]
-- ** ---------- .> app:         aethercrawler:0x10470cac0
+- ** ---------- .> app:         aethercrawler:0x1030fbb50
 - ** ---------- .> transport:   redis://localhost:16379/0
 - ** ---------- .> results:     redis://localhost:16379/0
 - *** --- * --- .> concurrency: 2 (prefork)
@@ -20,7 +20,7 @@
   . tasks.batch_crypto_sentiment_analysis
   . tasks.crypto_sentiment_analysis
 
-[2026-06-20 16:34:11,954: INFO/MainProcess] Connected to redis://localhost:16379/0
-[2026-06-20 16:34:11,960: INFO/MainProcess] mingle: searching for neighbors
-[2026-06-20 16:34:12,976: INFO/MainProcess] mingle: all alone
-[2026-06-20 16:34:13,013: INFO/MainProcess] celery@solodeMacBook-Air.local ready.
+[2026-06-20 16:39:01,411: INFO/MainProcess] Connected to redis://localhost:16379/0
+[2026-06-20 16:39:01,417: INFO/MainProcess] mingle: searching for neighbors
+[2026-06-20 16:39:02,427: INFO/MainProcess] mingle: all alone
+[2026-06-20 16:39:02,448: INFO/MainProcess] celery@solodeMacBook-Air.local ready.

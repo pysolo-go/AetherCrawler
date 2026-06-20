@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     # Playwright 爬虫配置
     PLAYWRIGHT_HEADLESS: bool = True
     
+    # NewsAPI 配置 (用于替代不稳定的 Playwright 爬虫)
+    NEWS_API_KEY: str = ""
+    NEWS_API_DAILY_LIMIT: int = 80  # 每天最大请求次数
+    
+    # HTTP 代理配置 (用于爬虫访问外网)
+    HTTP_PROXY: str = ""
+    HTTPS_PROXY: str = ""
+    
     # HTTP 请求超时时间 (秒)
     HTTP_TIMEOUT: int = 30
 

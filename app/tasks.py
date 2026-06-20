@@ -67,51 +67,179 @@ async def fetch_coingecko_historical_data(coin: str, days: int = 7) -> Dict[str,
         return {"prices": [], "market_caps": [], "total_volumes": []}
 
 async def crawl_crypto_news(coin: str) -> List[str]:
-    """异步 Playwright 爬取加密新闻网站 (如 CoinDesk、Decrypt)"""
+    """
+    获取加密货币新闻的入口函数。
+    
+    优先级：
+    1. NewsAPI（结构化，速度快，需要 API Key）
+    2. Playwright 爬虫（备用方案，成功率低但无需 API Key）
+    
+    降级逻辑说明：
+    - 如果 NewsAPI 不可用（未配置 Key / 请求失败 / 触发限流），自动切换到 Playwright
+    - 如果两种方案都失败，返回空列表（不会导致分析流程中断）
+    
+    ⚠️ NewsAPI 免费版每天 100 次请求限制，配额用尽后自动降级到 Playwright
+    """
+    # 优先尝试 NewsAPI
+    if settings.NEWS_API_KEY:
+        news_texts = await _fetch_news_from_newsapi(coin)
+        if news_texts:
+            logger.info(f"[NewsAPI] {coin} 成功获取 {len(news_texts)} 条新闻")
+            return news_texts
+        else:
+            logger.warning(f"[NewsAPI] {coin} 未获取到新闻，尝试降级到 Playwright")
+    
+    # 降级到 Playwright 爬虫
+    return await _crawl_news_with_playwright(coin)
+
+async def _fetch_news_from_newsapi(coin: str) -> List[str]:
+    """
+    通过 NewsAPI 获取新闻
+    
+    参数:
+        coin: 币种名称 (如 bitcoin, ethereum)
+    
+    返回:
+        新闻标题列表，如果失败返回空列表
+    """
+    if not settings.NEWS_API_KEY:
+        logger.warning("[NewsAPI] 未配置 API Key，跳过")
+        return []
+    
+    # 构造搜索关键词（包含中英文和常见写法）
+    coin_keywords = {
+        "bitcoin": "Bitcoin OR BTC OR 比特币",
+        "ethereum": "Ethereum OR ETH OR 以太坊",
+        "solana": "Solana OR SOL",
+        "dogecoin": "Dogecoin OR DOGE OR 狗狗币",
+    }
+    keyword = coin_keywords.get(coin.lower(), f"{coin} OR cryptocurrency")
+    
+    url = "https://newsapi.org/v2/everything"
+    params = {
+        "q": keyword,
+        "language": "en",
+        "sortBy": "publishedAt",
+        "pageSize": 10,
+        "apiKey": settings.NEWS_API_KEY
+    }
+    
+    try:
+        # 构造代理配置（httpx 支持通过环境变量或显式配置）
+        proxy_url = None
+        if hasattr(settings, 'HTTP_PROXY') and settings.HTTP_PROXY:
+            proxy_url = settings.HTTP_PROXY
+        
+        async with httpx.AsyncClient(
+            timeout=settings.HTTP_TIMEOUT,
+            proxy=proxy_url
+        ) as client:
+            resp = await client.get(url, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+        
+        # 检查 API 响应状态
+        status = data.get("status", "")
+        if status != "ok":
+            code = data.get("code", "unknown")
+            message = data.get("message", "Unknown error")
+            logger.warning(f"[NewsAPI Error] {coin} | Code: {code} | Message: {message}")
+            
+            # 处理特定错误码
+            if code in ["apiKeyInvalid", "apiKeyMissing"]:
+                logger.error("[NewsAPI] API Key 无效，请检查 NEWS_API_KEY 配置")
+                return []
+            elif code in ["rateLimited"]:
+                logger.warning("[NewsAPI] 触发请求频率限制，降级到 Playwright")
+                return []
+            # 其他错误码也降级到 Playwright
+            return []
+        
+        # 解析新闻列表
+        articles = data.get("articles", [])
+        if not articles:
+            logger.warning(f"[NewsAPI] {coin} 未找到相关新闻")
+            return []
+        
+        news_texts = []
+        for article in articles[:10]:
+            title = article.get("title", "")
+            source = article.get("source", {}).get("name", "Unknown")
+            if title and len(title) > 10:
+                # 过滤掉"removed"等无效标题
+                if title.lower() != "[removed]":
+                    news_texts.append(f"[{source}] {title}")
+        
+        return news_texts
+        
+    except httpx.HTTPStatusError as e:
+        logger.warning(f"[NewsAPI] HTTP 错误: {e.response.status_code}")
+        return []
+    except Exception as e:
+        logger.warning(f"[NewsAPI] 请求异常: {type(e).__name__}: {str(e)}")
+        return []
+
+async def _crawl_news_with_playwright(coin: str) -> List[str]:
+    """
+    使用 Playwright 爬取加密货币新闻网站（降级方案）
+    
+    支持网站：
+    - CoinDesk
+    - Decrypt
+    """
     news_texts = []
     
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=settings.PLAYWRIGHT_HEADLESS)
-        context = await browser.new_context(user_agent=random.choice(USER_AGENTS))
-        
-        try:
-            # 网站 1: CoinDesk (搜索页/首页)
-            page = await context.new_page()
-            try:
-                search_url = f"https://www.coindesk.com/search?s={coin}"
-                await page.goto(search_url, timeout=settings.HTTP_TIMEOUT * 1000)
-                await page.wait_for_timeout(3000)
-                
-                articles = await page.query_selector_all("h6, h2, .article-title")
-                for article in articles[:5]:
-                    text = await article.inner_text()
-                    if text.strip() and len(text.strip()) > 10:
-                        news_texts.append(f"CoinDesk: {text.strip()}")
-            except Exception as e:
-                logger.warning(f"Error crawling CoinDesk: {e}")
-            finally:
-                await page.close()
-                
-            # 网站 2: Decrypt
-            page2 = await context.new_page()
-            try:
-                search_url2 = f"https://decrypt.co/search?q={coin}"
-                await page2.goto(search_url2, timeout=settings.HTTP_TIMEOUT * 1000)
-                await page2.wait_for_timeout(3000)
-                
-                articles = await page2.query_selector_all("h3, h2")
-                for article in articles[:5]:
-                    text = await article.inner_text()
-                    if text.strip() and len(text.strip()) > 10:
-                        news_texts.append(f"Decrypt: {text.strip()}")
-            except Exception as e:
-                logger.warning(f"Error crawling Decrypt: {e}")
-            finally:
-                await page2.close()
-
-        finally:
-            await browser.close()
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=settings.PLAYWRIGHT_HEADLESS)
+            context = await browser.new_context(user_agent=random.choice(USER_AGENTS))
             
+            try:
+                # 网站 1: CoinDesk
+                page = await context.new_page()
+                try:
+                    search_url = f"https://www.coindesk.com/search?s={coin}"
+                    await page.goto(search_url, timeout=settings.HTTP_TIMEOUT * 1000)
+                    await page.wait_for_timeout(3000)
+                    
+                    articles = await page.query_selector_all("h6, h2, .article-title")
+                    for article in articles[:5]:
+                        text = await article.inner_text()
+                        if text.strip() and len(text.strip()) > 10:
+                            news_texts.append(f"CoinDesk: {text.strip()}")
+                except Exception as e:
+                    logger.warning(f"[Playwright] CoinDesk 爬取失败: {e}")
+                finally:
+                    await page.close()
+                    
+                # 网站 2: Decrypt
+                page2 = await context.new_page()
+                try:
+                    search_url2 = f"https://decrypt.co/search?q={coin}"
+                    await page2.goto(search_url2, timeout=settings.HTTP_TIMEOUT * 1000)
+                    await page2.wait_for_timeout(3000)
+                    
+                    articles = await page2.query_selector_all("h3, h2")
+                    for article in articles[:5]:
+                        text = await article.inner_text()
+                        if text.strip() and len(text.strip()) > 10:
+                            news_texts.append(f"Decrypt: {text.strip()}")
+                except Exception as e:
+                    logger.warning(f"[Playwright] Decrypt 爬取失败: {e}")
+                finally:
+                    await page2.close()
+
+            finally:
+                await browser.close()
+                
+    except Exception as e:
+        logger.error(f"[Playwright] 爬虫整体失败: {type(e).__name__}: {str(e)}")
+    
+    if news_texts:
+        logger.info(f"[Playwright] {coin} 成功获取 {len(news_texts)} 条新闻")
+    else:
+        logger.warning(f"[Playwright] {coin} 未获取到任何新闻")
+    
     return news_texts
 
 async def _run_analysis_pipeline(celery_task_id: str, coin: str, days: int = 7):
