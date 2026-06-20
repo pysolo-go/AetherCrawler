@@ -26,3 +26,6 @@ python-dotenv>=1.0.1
 
 # 异步 HTTP 请求 (CoinGecko API 等)
 httpx>=0.27.0
+
+# 同步 HTTP 请求 (飞书 Webhook 通知等)
+requests>=2.31.0

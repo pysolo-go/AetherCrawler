@@ -27,6 +27,15 @@ class Settings(BaseSettings):
     NEWS_API_KEY: str = ""
     NEWS_API_DAILY_LIMIT: int = 80  # 每天最大请求次数
     
+    # 飞书 Webhook 配置
+    FEISHU_WEBHOOK_URL: str = ""
+    FEISHU_ALERT_THRESHOLD_LOW: float = 0.35
+    FEISHU_ALERT_THRESHOLD_HIGH: float = 0.75
+    FEISHU_DEDUP_WINDOW_MINUTES: int = 15
+    
+    # 自动通知开关 (紧急时可快速关闭)
+    ENABLE_AUTO_NOTIFY: bool = False
+    
     # HTTP 代理配置 (用于爬虫访问外网)
     HTTP_PROXY: str = ""
     HTTPS_PROXY: str = ""

@@ -12,6 +12,7 @@ from app.celery_app import celery_app
 from app.database import async_session_maker
 from app.models import Task, AnalysisResult
 from app.utils import perform_sentiment_analysis
+from app.notifier import send_feishu_alert, send_failure_alert
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -290,6 +291,18 @@ async def _run_analysis_pipeline(celery_task_id: str, coin: str, days: int = 7):
                 await db.commit()
                 
             logger.info(f"币种 {coin} 分析完成，情绪分数: {analysis.get('sentiment_score')}")
+            
+            # 6. 发送飞书预警通知（如果有极端情绪）
+            await send_feishu_alert(
+                coin=coin,
+                sentiment_score=analysis.get("sentiment_score", 0.5),
+                sentiment=analysis.get("sentiment", "Neutral"),
+                summary=analysis.get("summary", ""),
+                risk_level=analysis.get("risk_level", "Medium"),
+                price_info=current_data,
+                fear_and_greed=current_data.get("fear_and_greed") if current_data else None
+            )
+            
             return {
                 "coin": coin,
                 "current_price": current_data,

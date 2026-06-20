@@ -111,6 +111,30 @@ services:
       worker:
         condition: service_started
 
+  # ------------------------------------
+  # 6. Celery Beat (定时任务调度器)
+  # ------------------------------------
+  # 注意：定时任务配置在 app/celery_app.py 的 beat_schedule 中定义
+  # 启动后会按配置的时间自动触发 BTC/ETH 的每日分析任务
+  beat:
+    build: .
+    container_name: aethercrawler-beat
+    restart: always
+    command: celery -A app.celery_app beat -l info
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/aethercrawler
+      - REDIS_URL=redis://redis:6379/0
+      - HTTP_PROXY=http://host.docker.internal:7897
+      - HTTPS_PROXY=http://host.docker.internal:7897
+      - ALL_PROXY=http://host.docker.internal:7897
+    depends_on:
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:
