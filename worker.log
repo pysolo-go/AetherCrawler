@@ -1,0 +1,26 @@
+/Users/solo/Desktop/work/trae.ai/AetherCrawler/venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+ 
+ -------------- celery@solodeMacBook-Air.local v5.6.3 (recovery)
+--- ***** ----- 
+-- ******* ---- macOS-15.7.3-arm64-arm-64bit 2026-06-20 16:34:11
+- *** --- * --- 
+- ** ---------- [config]
+- ** ---------- .> app:         aethercrawler:0x10470cac0
+- ** ---------- .> transport:   redis://localhost:16379/0
+- ** ---------- .> results:     redis://localhost:16379/0
+- *** --- * --- .> concurrency: 2 (prefork)
+-- ******* ---- .> task events: OFF (enable -E to monitor tasks in this worker)
+--- ***** ----- 
+ -------------- [queues]
+                .> celery           exchange=celery(direct) key=celery
+                
+
+[tasks]
+  . tasks.batch_crypto_sentiment_analysis
+  . tasks.crypto_sentiment_analysis
+
+[2026-06-20 16:34:11,954: INFO/MainProcess] Connected to redis://localhost:16379/0
+[2026-06-20 16:34:11,960: INFO/MainProcess] mingle: searching for neighbors
+[2026-06-20 16:34:12,976: INFO/MainProcess] mingle: all alone
+[2026-06-20 16:34:13,013: INFO/MainProcess] celery@solodeMacBook-Air.local ready.

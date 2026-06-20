@@ -3,7 +3,7 @@ services:
   # 1. PostgreSQL 数据库 (持久化任务与分析结果)
   # ------------------------------------
   postgres:
-    image: docker.1panel.live/library/postgres:15-alpine
+    image: postgres:15-alpine
     container_name: aethercrawler-postgres
     restart: always
     environment:
@@ -24,7 +24,7 @@ services:
   # 2. Redis (Celery Broker 和 Backend)
   # ------------------------------------
   redis:
-    image: docker.1panel.live/library/redis:7-alpine
+    image: redis:7-alpine
     container_name: aethercrawler-redis
     restart: always
     ports:
@@ -98,7 +98,7 @@ services:
   # 5. Flower (可视化 Celery 任务监控面板)
   # ------------------------------------
   flower:
-    image: docker.1panel.live/mher/flower:2.0
+    image: mher/flower:2.0
     container_name: aethercrawler-flower
     restart: always
     environment:
